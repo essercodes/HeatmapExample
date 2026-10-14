@@ -1,0 +1,35 @@
+{
+    "name": "Neovim Basic",
+    "build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": "true",
+            "upgradePackages": "true"
+        },
+        "ghcr.io/devcontainers/features/git:1": {
+            "version": "latest",
+            "ppa": "false"
+        },
+        "ghcr.io/essercodes/devcontainer/claudecode": {
+            "username": "nonAdmin"
+        },
+        "ghcr.io/essercodes/devcontainer/opencode": {
+            "username": "nonAdmin"
+        },
+        "ghcr.io/essercodes/devcontainer/tmux": {},
+        "ghcr.io/essercodes/devcontainer/op": {},
+        "ghcr.io/essercodes/devcontainer/neovim-config": {
+            "configurl": "https://github.com/essercodes/neovim-config"
+        }
+    },
+	"remoteUser": "max",
+    "containerEnv": {
+        "REMOTE_USER": "max",
+        "CONTAINER_WORKSPACE_FOLDER": "${containerWorkspaceFolder}"
+    },
+    "appPort": ["5174:5174"],
+    "onCreateCommand":  "sudo bash $CONTAINER_WORKSPACE_FOLDER/.devcontainer/bin/onCreate.sh",
+    "updateContentCommand": "sudo bash $CONTAINER_WORKSPACE_FOLDER/.devcontainer/bin/updateContent.sh"
+}

@@ -1,0 +1,65 @@
+{
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "version": "2.7.1",
+      "resolved": "ghcr.io/devcontainers/features/common-utils@sha256:e76a6a8a35d1ad824daad1540725e0ec9f8ed2dc00d2850e990a9830013c7d08",
+      "integrity": "sha256:e76a6a8a35d1ad824daad1540725e0ec9f8ed2dc00d2850e990a9830013c7d08"
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "1.3.8",
+      "resolved": "ghcr.io/devcontainers/features/git@sha256:fd75977de13a9979000e0e78baf949adb0ca71d2398995fa22e0a36d7e7e7fe2",
+      "integrity": "sha256:fd75977de13a9979000e0e78baf949adb0ca71d2398995fa22e0a36d7e7e7fe2"
+    },
+    "ghcr.io/devcontainers/features/node": {
+      "version": "2.1.1",
+      "resolved": "ghcr.io/devcontainers/features/node@sha256:2a19d3b0b3879437637cfd292eb29fee0afcfbe6364e33db9afc4f80c5c1f956",
+      "integrity": "sha256:2a19d3b0b3879437637cfd292eb29fee0afcfbe6364e33db9afc4f80c5c1f956"
+    },
+    "ghcr.io/devcontainers/features/python": {
+      "version": "1.8.0",
+      "resolved": "ghcr.io/devcontainers/features/python@sha256:fbcad6955caeecc5ad3f7886baf652e25cba5225a6c4c2287c536de2e5607511",
+      "integrity": "sha256:fbcad6955caeecc5ad3f7886baf652e25cba5225a6c4c2287c536de2e5607511"
+    },
+    "ghcr.io/devcontainers/features/rust": {
+      "version": "1.6.0",
+      "resolved": "ghcr.io/devcontainers/features/rust@sha256:846c949f52c9dea98d4f90a11957cbf152fb3f6e8a70ddd7cb83014a7d1d0c98",
+      "integrity": "sha256:846c949f52c9dea98d4f90a11957cbf152fb3f6e8a70ddd7cb83014a7d1d0c98"
+    },
+    "ghcr.io/essercodes/devcontainer/claudecode": {
+      "version": "0.1.7",
+      "resolved": "ghcr.io/essercodes/devcontainer/claudecode@sha256:d0571624d18c25e500f4afa46dcd9f341fe86898886287b3ba40abc0af6a2f77",
+      "integrity": "sha256:d0571624d18c25e500f4afa46dcd9f341fe86898886287b3ba40abc0af6a2f77"
+    },
+    "ghcr.io/essercodes/devcontainer/neovim": {
+      "version": "0.1.1",
+      "resolved": "ghcr.io/essercodes/devcontainer/neovim@sha256:cd9890614cf6be38ad128036f3a236f64cb983e5763553d1a638a81145413549",
+      "integrity": "sha256:cd9890614cf6be38ad128036f3a236f64cb983e5763553d1a638a81145413549"
+    },
+    "ghcr.io/essercodes/devcontainer/neovim-config": {
+      "version": "0.1.6",
+      "resolved": "ghcr.io/essercodes/devcontainer/neovim-config@sha256:75693785f04dd0742a8612ad8f2dc52b924e969fdb4c65df2f37820b0bf646d5",
+      "integrity": "sha256:75693785f04dd0742a8612ad8f2dc52b924e969fdb4c65df2f37820b0bf646d5",
+      "dependsOn": [
+        "ghcr.io/devcontainers/features/rust",
+        "ghcr.io/devcontainers/features/python",
+        "ghcr.io/devcontainers/features/node",
+        "ghcr.io/essercodes/devcontainer/neovim"
+      ]
+    },
+    "ghcr.io/essercodes/devcontainer/op": {
+      "version": "0.1.0",
+      "resolved": "ghcr.io/essercodes/devcontainer/op@sha256:c93668c3549032ebb76f26aa2cb583a17e50e2fda1397534e8df2cec28723591",
+      "integrity": "sha256:c93668c3549032ebb76f26aa2cb583a17e50e2fda1397534e8df2cec28723591"
+    },
+    "ghcr.io/essercodes/devcontainer/opencode": {
+      "version": "0.1.8",
+      "resolved": "ghcr.io/essercodes/devcontainer/opencode@sha256:884094475a6392b2ea810fc2eb6129a1a1ad0172d6cb2e729df3270f161b9ff6",
+      "integrity": "sha256:884094475a6392b2ea810fc2eb6129a1a1ad0172d6cb2e729df3270f161b9ff6"
+    },
+    "ghcr.io/essercodes/devcontainer/tmux": {
+      "version": "0.1.7",
+      "resolved": "ghcr.io/essercodes/devcontainer/tmux@sha256:53f59bc33ab173120ea7d044eb9f1289b7f7a3af2210cae43665c646d9ca483d",
+      "integrity": "sha256:53f59bc33ab173120ea7d044eb9f1289b7f7a3af2210cae43665c646d9ca483d"
+    }
+  }
+}
