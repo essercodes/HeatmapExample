@@ -1,0 +1,57 @@
+name: understory
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:3000"
+    depends_on:
+      - gateway
+
+  gateway:
+    build: ./backend/api_gateway
+    ports:
+      - "8081:80"
+    depends_on:
+      - booking
+      - vehicle
+
+  booking:
+    build: ./backend/booking
+    environment:
+      DATABASE_URL: postgresql://understory:${DB_PASSWORD:-understory}@db:5432/understory
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+        # nginx.conf routes to the container names used by the Makefile.
+        aliases: [understory-booking]
+
+  vehicle:
+    build: ./backend/vehicle
+    environment:
+      DATABASE_URL: postgresql://understory:${DB_PASSWORD:-understory}@db:5432/understory
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+        aliases: [understory-vehicle]
+
+  db:
+    build: ./backend/database
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-understory}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U understory -d understory"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:

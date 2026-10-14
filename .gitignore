@@ -1,0 +1,30 @@
+# Secrets
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Python
+__pycache__
+
+# React Router
+node_modules/
+frontend/.react-router/
+
+# pnpm
+.pnpm-store/
+build/
+dist/
+
+# caches
+.cache/
+cache/
+
+# logs
+*.log
+
+.agents/history/
+
+# System 
+.DS_Store

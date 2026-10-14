@@ -1,3 +1,2 @@
-# Understory Heatmap
+# Heatmap Example
 
-requirements: terraform, psql, docker, 
