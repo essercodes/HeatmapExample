@@ -29,6 +29,8 @@ services:
     build: ./backend/booking
     environment:
       DATABASE_URL: postgresql://heatmap:${DB_PASSWORD:-heatmap}@db:5432/heatmap
+      # Cron schedule for syncing active bookings from the mock upstream API.
+      SYNC_CRON_SCHEDULE: ${SYNC_CRON_SCHEDULE:-*/5 * * * *}
     depends_on:
       db:
         condition: service_healthy
