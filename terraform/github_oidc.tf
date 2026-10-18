@@ -2,9 +2,10 @@
 # Set the repo variable AWS_ROLE_ARN to output github_actions_role_arn.
 
 variable "github_repository" {
-  description = "GitHub repository (owner/name) allowed to assume the CI role."
+  description = "Repository as it appears in the OIDC sub claim, which for this org includes numeric IDs (owner@id/name@id)."
   type        = string
-  default     = "essercodes/HeatmapExample"
+  # https://github.com/essercodes/HeatmapExample/settings/actions/oidc-configuration
+  default     = "essercodes@6158932/HeatmapExample@1418413924"
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
