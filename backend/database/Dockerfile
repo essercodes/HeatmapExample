@@ -1,7 +1,7 @@
-FROM postgis/postgis:17-3.5
+FROM postgis/postgis:18-3.6
 
 # The base image's initdb script enables the postgis extensions in $POSTGRES_DB.
-ENV POSTGRES_DB=understory \
-    POSTGRES_USER=understory
+ENV POSTGRES_DB=heatmap \
+    POSTGRES_USER=heatmap
 
 EXPOSE 5432

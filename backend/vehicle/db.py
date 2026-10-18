@@ -3,7 +3,7 @@ import os
 from psycopg_pool import ConnectionPool
 
 DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://understory:understory@understory-db:5432/understory"
+    "DATABASE_URL", "postgresql://heatmap:heatmap@heatmap-db:5432/heatmap"
 )
 
 # Opens in the background; checkouts wait (up to `timeout`) until the database is reachable.

@@ -35,7 +35,7 @@
 		"REMOTE_USER": "max",
 		"CONTAINER_WORKSPACE_FOLDER": "${containerWorkspaceFolder}"
 	},
-	"appPort": ["8081:8081", "8080:8080"],
+	"appPort": ["8081:8081", "8080:8080", "5432:5432"],
 	"onCreateCommand":  "sudo bash $CONTAINER_WORKSPACE_FOLDER/.devcontainer/bin/onCreate.sh",
 	"updateContentCommand": "sudo bash $CONTAINER_WORKSPACE_FOLDER/.devcontainer/bin/updateContent.sh"
 }

@@ -1,0 +1,3 @@
+[submodule "docker-postgis"]
+	path = docker-postgis
+	url = https://github.com/postgis/docker-postgis.git
