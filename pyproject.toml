@@ -1,0 +1,17 @@
+[tool.basedpyright]
+typeCheckingMode = "recommended"   # off | basic | standard | strict | recommended | all
+venvPath = "."
+venv = "venv"
+
+# Each service is run from its own directory (flat imports such as `from db import ...`).
+[[tool.basedpyright.executionEnvironments]]
+root = "backend/booking"
+extraPaths = ["backend/booking"]
+
+[[tool.basedpyright.executionEnvironments]]
+root = "backend/vehicle"
+extraPaths = ["backend/vehicle"]
+
+[[tool.basedpyright.executionEnvironments]]
+root = "backend/schema_migrations"
+extraPaths = ["backend/schema_migrations"]

@@ -36,3 +36,4 @@ test: install-python-dependencies up
 arm-docker-postgis:
 	cd docker-postgis && \
 	make build VERSION=18-3.6 VARIANT=default
+

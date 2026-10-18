@@ -7,6 +7,8 @@ that need the database are skipped.
 
 import os
 import shutil
+from collections.abc import Iterator
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -22,16 +24,16 @@ TEST_DB_NAME = "heatmap_test_migrations"
 TEST_DATABASE_URL = make_conninfo(ADMIN_DATABASE_URL, dbname=TEST_DB_NAME)
 
 
-def _admin_connect():
+def _admin_connect() -> psycopg.Connection:
     return psycopg.connect(ADMIN_DATABASE_URL, autocommit=True, connect_timeout=3)
 
 
-def _drop(admin):
-    admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(TEST_DB_NAME)))
+def _drop(admin: psycopg.Connection) -> None:
+    _ = admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(TEST_DB_NAME)))
 
 
 @pytest.fixture
-def database(monkeypatch):
+def database(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     """An empty database that migrate.main() targets; yields its URL."""
     try:
         admin = _admin_connect()
@@ -40,7 +42,7 @@ def database(monkeypatch):
 
     with admin:
         _drop(admin)
-        admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(TEST_DB_NAME)))
+        _ = admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(TEST_DB_NAME)))
 
     monkeypatch.setattr(migrate, "DATABASE_URL", TEST_DATABASE_URL)
     yield TEST_DATABASE_URL
@@ -50,16 +52,16 @@ def database(monkeypatch):
 
 
 @pytest.fixture
-def conn(database):
+def conn(database: str) -> Iterator[psycopg.Connection]:
     with psycopg.connect(database, autocommit=True) as conn:
         yield conn
 
 
 @pytest.fixture
-def migrations_dir(tmp_path, monkeypatch):
+def migrations_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A scratch copy of the real migrations that migrate.main() reads instead; add files to it freely."""
     path = tmp_path / "migrations"
-    shutil.copytree(migrate.MIGRATIONS_DIR, path)
+    _ = shutil.copytree(migrate.MIGRATIONS_DIR, path)
     monkeypatch.setattr(migrate, "MIGRATIONS_DIR", path)
     monkeypatch.setattr(migrate, "BOOTSTRAP", path / migrate.BOOTSTRAP.name)
     return path

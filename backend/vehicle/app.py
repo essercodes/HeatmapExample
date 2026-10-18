@@ -7,14 +7,14 @@ from db import get_conn
 app = Flask(__name__)
 
 # In-memory stand-in for the database until persistence is wired up.
-_store = {}
+_store: dict[str, object] = {}
 
 
 @app.get("/health")
 def health():
     try:
         with get_conn(timeout=2) as conn:
-            conn.execute("SELECT 1")
+            _ = conn.execute("SELECT 1")
     except (DBError, PoolTimeout) as exc:
         return jsonify(status="degraded", database=str(exc)), 503
     return jsonify(status="ok", database="ok")
@@ -27,7 +27,7 @@ def list_data():
 
 
 @app.get("/data/<key>")
-def get_data(key):
+def get_data(key: str):
     """Pick up a single record."""
     # TODO: read from the database via get_conn()
     if key not in _store:
@@ -36,7 +36,7 @@ def get_data(key):
 
 
 @app.put("/data/<key>")
-def put_data(key):
+def put_data(key: str):
     """Put down (create or replace) a single record."""
     payload = request.get_json(silent=True)
     if payload is None:

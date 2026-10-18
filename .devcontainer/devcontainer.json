@@ -28,7 +28,8 @@
 			"moby": true
 		},
 		"ghcr.io/devcontainers/features/terraform:1": {},
-		"ghcr.io/rails/devcontainer/features/postgres-client": {}
+		"ghcr.io/rails/devcontainer/features/postgres-client": {},
+        "ghcr.io/devcontainers/features/aws-cli:1": {}
 	},
 	"remoteUser": "max",
 	"containerEnv": {

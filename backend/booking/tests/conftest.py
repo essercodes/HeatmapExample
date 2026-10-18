@@ -8,10 +8,14 @@ dropped. When that server is unreachable, tests that need the database are skipp
 import importlib.util
 import os
 import sys
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from types import ModuleType
+from typing import cast
 
 import psycopg
 import pytest
+from flask.testing import FlaskClient
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 from psycopg_pool import ConnectionPool
@@ -29,27 +33,29 @@ os.environ["MOCK_API_DELAY_MS"] = "0"
 MIGRATE_PY = Path(__file__).parents[2] / "schema_migrations" / "migrate.py"
 
 
-def _load_migrate():
+def _load_migrate() -> ModuleType:
     spec = importlib.util.spec_from_file_location("migrate", MIGRATE_PY)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def pytest_sessionfinish(session, exitstatus):
+def pytest_sessionfinish() -> None:
     # Close the pool even when the database fixture never ran (e.g. Postgres was unreachable),
     # so its worker threads don't outlive the interpreter.
-    db = sys.modules.get("db")
-    if db is not None:
+    if "db" in sys.modules:
+        import db
+
         db.pool.close()
 
 
-def _admin_connect():
+def _admin_connect() -> psycopg.Connection:
     return psycopg.connect(ADMIN_DATABASE_URL, autocommit=True, connect_timeout=3)
 
 
 @pytest.fixture(scope="session")
-def database():
+def database() -> Iterator[str]:
     """Create and migrate the test database, and point db.pool at it; yields its URL."""
     try:
         admin = _admin_connect()
@@ -58,12 +64,12 @@ def database():
 
     name = sql.Identifier(TEST_DB_NAME)
     with admin:
-        admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(name))
-        admin.execute(sql.SQL("CREATE DATABASE {}").format(name))
+        _ = admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(name))
+        _ = admin.execute(sql.SQL("CREATE DATABASE {}").format(name))
 
     migrate = _load_migrate()
-    migrate.DATABASE_URL = TEST_DATABASE_URL
-    migrate.main()
+    setattr(migrate, "DATABASE_URL", TEST_DATABASE_URL)
+    cast(Callable[[], None], getattr(migrate, "main"))()
 
     # The pool db.py opened at import time started before this database existed, and may be
     # backing off between reconnect attempts; swap in a fresh one that is ready now.
@@ -77,19 +83,19 @@ def database():
 
     db.pool.close()
     with _admin_connect() as admin:
-        admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(name))
+        _ = admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(name))
 
 
 @pytest.fixture
-def conn(database):
+def conn(database: str) -> Iterator[psycopg.Connection]:
     """A connection to an empty bookings table."""
     with psycopg.connect(database, autocommit=True) as conn:
-        conn.execute("TRUNCATE bookings RESTART IDENTITY")
+        _ = conn.execute("TRUNCATE bookings RESTART IDENTITY")
         yield conn
 
 
 @pytest.fixture
-def client():
+def client() -> FlaskClient:
     from app import app
 
     app.config["TESTING"] = True
