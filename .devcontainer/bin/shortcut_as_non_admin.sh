@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: op_env_run -c <cmd> [-b <bin>] [-e <env_file>] [-p <VAR,VAR,...>] [-m] [-- <args>...]
+Usage: shortcut_as_non_admin -c <cmd> [-b <bin>] [-e <env_file>] [-p <VAR,VAR,...>] [-m] [-- <args>...]
 
   -c <cmd>       name of the shell function to define
   -b <bin>       binary to run; defaults to <cmd>

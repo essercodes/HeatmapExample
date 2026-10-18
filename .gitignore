@@ -29,3 +29,9 @@ cache/
 
 # System 
 .DS_Store
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
