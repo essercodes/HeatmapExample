@@ -23,10 +23,11 @@ BOOTSTRAP = MIGRATIONS_DIR / "0000_schema_migrations.sql"
 
 def main():
     files = sorted(MIGRATIONS_DIR.glob("*.sql"))
-    with psycopg.connect(DATABASE_URL) as conn:
+    # Autocommit, so each conn.transaction() below is a real transaction rather than a savepoint
+    # inside one implicit transaction spanning the whole run.
+    with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
         _ = conn.execute("SELECT pg_advisory_lock(%s)", (LOCK_ID,))
         _ = conn.execute(BOOTSTRAP.read_bytes())
-        conn.commit()
 
         applied = dict(conn.execute("SELECT version, checksum FROM schema_migrations"))
 
