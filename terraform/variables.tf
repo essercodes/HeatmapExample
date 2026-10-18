@@ -23,7 +23,7 @@ variable "project" {
 }
 
 variable "environment" {
-  description = "\"test\" is cheap and disposable; \"production\" enables deletion protection, Multi-AZ, NAT, backups, and immutable image tags."
+  description = "\"test\" is cheap and disposable; \"production\" enables deletion protection, Multi-AZ, NAT, and backups."
   type        = string
   default     = "test"
 

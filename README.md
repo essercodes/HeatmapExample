@@ -16,8 +16,8 @@ make arm-docker-postgis
 
 ## How to run tests locally
 ```sh
-make test
-make down  # test runs `make up` local database must be running for some tests.
+make test  # or test-booking, test-vehicle, test-schema-migrations
+make down  # tests start the database container; stop it when done
 ```
 
 ## Development
@@ -50,4 +50,11 @@ pip install basedpyright
 
 claude plugin marketplace add datacas/claude-basedpyright-lsp
 claude plugin install basedpyright-lsp@basedpyright-marketplace
+```
+
+## op init aws
+
+```sh
+OP_SERVICE_ACCOUNT_TOKEN=$(cat /home/max/op_secret) op --account my.1password.com plugin init aws
+# echo "source /home/max/.config/op/plugins.sh" >> ~/.bashrc && source ~/.bashrc
 ```
