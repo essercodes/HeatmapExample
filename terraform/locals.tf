@@ -16,4 +16,9 @@ locals {
   ecr_force_delete        = !local.is_production
   enable_nat_gateway      = local.is_production
   ecr_untagged_expiry_day = 7
+  ecs_task_cpu            = local.is_production ? 512 : 256
+  ecs_task_memory         = local.is_production ? 1024 : 512
+  ecs_desired_count       = local.is_production ? 2 : 1
+  ecs_log_retention_days  = local.is_production ? 90 : 14
+  ecs_subnet_ids          = local.enable_nat_gateway ? aws_subnet.private[*].id : aws_subnet.public[*].id
 }

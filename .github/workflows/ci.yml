@@ -12,6 +12,9 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   ECR_NAMESPACE: heatmap
+  # terraform: local.name = "<project>-<environment>"; the cluster has this name and the task
+  # definition families are "<ECS_CLUSTER>-<container>".
+  ECS_CLUSTER: heatmap-test
 
 jobs:
   # Works out which containers need testing/rebuilding. A container is included when its own
@@ -21,6 +24,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      # The same list without schema-migrations, which is a job and not a service.
+      services: ${{ steps.matrix.outputs.services }}
     steps:
       - uses: actions/checkout@v4
 
@@ -58,6 +63,7 @@ jobs:
           add vehicle backend/vehicle "$VEHICLE"
           add schema-migrations backend/schema_migrations "$MIGRATIONS"
           echo "matrix=$matrix" | tee -a "$GITHUB_OUTPUT"
+          echo "services=$(jq -c 'map(select(.name != "schema-migrations"))' <<<"$matrix")" | tee -a "$GITHUB_OUTPUT"
 
   # One parallel job per changed container; each runs its own `make test-<name>`.
   test:
@@ -121,3 +127,90 @@ jobs:
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_NAMESPACE }}/${{ matrix.name }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+  # Runs the new migrations before any service picks up code that may depend on them.
+  migrate:
+    needs: [changes, push]
+    if: contains(fromJSON(needs.changes.outputs.matrix).*.name, 'schema-migrations')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run schema-migrations task
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          image="$account.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_NAMESPACE/schema-migrations:$GITHUB_SHA"
+          family="$ECS_CLUSTER-schema-migrations"
+
+          taskdef=$(aws ecs describe-task-definition --task-definition "$family" --query taskDefinition --output json \
+            | jq --arg image "$image" '
+                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                | .containerDefinitions[0].image = $image')
+          revision=$(aws ecs register-task-definition --cli-input-json "$taskdef" --query taskDefinition.taskDefinitionArn --output text)
+
+          # Reuse the subnets/security group of an existing service.
+          network=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services booking \
+            --query 'services[0].networkConfiguration' --output json)
+
+          task=$(aws ecs run-task --cluster "$ECS_CLUSTER" --launch-type FARGATE \
+            --task-definition "$revision" --network-configuration "$network" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Started $task"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$task"
+
+          exit_code=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$task" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          if [ "$exit_code" != "0" ]; then
+            echo "::error::migrations exited with code $exit_code (log group /ecs/$ECS_CLUSTER/schema-migrations)"
+            exit 1
+          fi
+
+  # Rolls each rebuilt service onto its new image; ECS's circuit breaker rolls back a bad deploy.
+  deploy:
+    needs: [changes, push, migrate]
+    # migrate is skipped when the schema didn't change; that's fine, but a failure is not.
+    if: ${{ !cancelled() && needs.push.result == 'success' && needs.migrate.result != 'failure' && needs.changes.outputs.services != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.services) }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy ${{ matrix.name }}
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          image="$account.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_NAMESPACE/${{ matrix.name }}:$GITHUB_SHA"
+          family="$ECS_CLUSTER-${{ matrix.name }}"
+
+          taskdef=$(aws ecs describe-task-definition --task-definition "$family" --query taskDefinition --output json \
+            | jq --arg image "$image" '
+                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                | .containerDefinitions[0].image = $image')
+          revision=$(aws ecs register-task-definition --cli-input-json "$taskdef" --query taskDefinition.taskDefinitionArn --output text)
+
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "${{ matrix.name }}" --task-definition "$revision" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "${{ matrix.name }}"
+
+          # services-stable also succeeds after a circuit-breaker rollback, so check what is running.
+          running=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "${{ matrix.name }}" \
+            --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition | [0]' --output text)
+          if [ "$running" != "$revision" ]; then
+            echo "::error::${{ matrix.name }} rolled back: primary deployment is $running, expected $revision"
+            exit 1
+          fi

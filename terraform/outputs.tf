@@ -40,3 +40,7 @@ output "service_discovery_arns" {
   description = "Cloud Map service ARNs to use as ECS service_registries."
   value       = { for k, s in aws_service_discovery_service.api : k => s.arn }
 }
+
+output "ecs_cluster_name" {
+  value = aws_ecs_cluster.main.name
+}

@@ -58,3 +58,34 @@ claude plugin install basedpyright-lsp@basedpyright-marketplace
 OP_SERVICE_ACCOUNT_TOKEN=$(cat /home/max/op_secret) op --account my.1password.com plugin init aws
 # echo "source /home/max/.config/op/plugins.sh" >> ~/.bashrc && source ~/.bashrc
 ```
+
+## Deploying to AWS
+
+Infrastructure is in `terraform/`
+
+### First-time setup
+AWS is set up under a separate AWS account, configured in AWS Organiztions.
+
+You need AWS credentials that can assume the account's `OrganizationAccountAccessRole`
+
+1. Check `github_repository` in `terraform/github_oidc.tf`. It must match the `sub` claim your
+   GitHub org/repo sends, which can include numeric IDs (`owner@id/repo@id`). A mismatch shows up
+   as "Not authorized to perform sts:AssumeRoleWithWebIdentity" in the workflow. The default subject
+   claim prefix is can be found in the repository settings: 
+   https://github.com/<org>/<repo>/settings/actions/oidc-configuration
+2. Create the infrastructure:
+   ```sh
+   cd terraform
+   terraform init
+   terraform apply
+   ```
+   The ECS services start with a placeholder image tag and can't run yet; that's expected.
+3. In the GitHub repo, go to Settings -> Secrets and variables -> Actions -> Variables and add the
+   repository variable `AWS_ROLE_ARN` with the value of `terraform output -raw github_actions_role_arn`.
+4. Push to `main` (or re-run the workflow). The first run rebuilds every container, pushes the
+   images tagged with the commit SHA, runs the database migrations, and deploys booking and
+   vehicle with the real images.
+   If the images are already in ECR you can pass thier image tags to the first apply:
+   `terraform apply -var 'image_tags={booking="<sha>",vehicle="<sha>",schema-migrations="<sha>"}'`
+5. Check it works: `curl "$(terraform output -raw api_url)/booking/health"` (and `/vehicle/health`).
+

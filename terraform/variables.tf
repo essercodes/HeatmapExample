@@ -1,13 +1,13 @@
 variable "account_id" {
   description = "AWS Organization Account ID"
-  type = string
-  default = "285861554180"
+  type        = string
+  default     = "285861554180"
 }
 
 variable "organization_account_access_role" {
   description = "AWS Organization Account Access Role"
-  type = string
-  default = "OrganizationAccountAccessRole" 
+  type        = string
+  default     = "OrganizationAccountAccessRole"
 }
 
 variable "region" {
@@ -78,4 +78,10 @@ variable "api_services" {
   description = "Backend services exposed through API Gateway at /<name>/..., mirroring backend/api_gateway/nginx.conf."
   type        = set(string)
   default     = ["booking", "vehicle"]
+}
+
+variable "image_tags" {
+  description = "Image tag (the git SHA CI pushed) per container: booking, vehicle, schema-migrations. Only read when Terraform creates a task definition; after that CI deploys new tags (see ecs.tf), so later applies can leave this unset."
+  type        = map(string)
+  default     = {}
 }
