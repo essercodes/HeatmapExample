@@ -5,13 +5,9 @@ server named by TEST_ADMIN_DATABASE_URL; it is created and migrated once per ses
 dropped. When that server is unreachable, tests that need the database are skipped.
 """
 
-import importlib.util
 import os
 import sys
-from collections.abc import Callable, Iterator
-from pathlib import Path
-from types import ModuleType
-from typing import cast
+from collections.abc import Iterator
 
 import psycopg
 import pytest
@@ -26,19 +22,9 @@ ADMIN_DATABASE_URL = os.environ.get(
 TEST_DB_NAME = "heatmap_test_booking"
 TEST_DATABASE_URL = make_conninfo(ADMIN_DATABASE_URL, dbname=TEST_DB_NAME)
 
-# db.py and mock_api.py read these at import time, so set them before any test module imports them.
+# db.py, migrate.py and mock_api.py read these at import time, so set them before any test module imports them.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["MOCK_API_DELAY_MS"] = "0"
-
-MIGRATE_PY = Path(__file__).parents[2] / "schema_migrations" / "migrate.py"
-
-
-def _load_migrate() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("migrate", MIGRATE_PY)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def pytest_sessionfinish() -> None:
@@ -67,9 +53,9 @@ def database() -> Iterator[str]:
         _ = admin.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(name))
         _ = admin.execute(sql.SQL("CREATE DATABASE {}").format(name))
 
-    migrate = _load_migrate()
-    setattr(migrate, "DATABASE_URL", TEST_DATABASE_URL)
-    cast(Callable[[], None], getattr(migrate, "main"))()
+    import migrate
+
+    migrate.main()
 
     # The pool db.py opened at import time started before this database existed, and may be
     # backing off between reconnect attempts; swap in a fresh one that is ready now.

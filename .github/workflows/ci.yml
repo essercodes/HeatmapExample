@@ -18,17 +18,18 @@ env:
   # Scheduled task families (terraform/ecs.tf), space-separated. One named "<service>-..." uses
   # that service's image, so each deploy of the service registers it with the new image.
   SCHEDULED_TASKS: booking-sync
+  # One-shot migration task families (terraform/ecs.tf), space-separated, matched the same way.
+  # Each deploy of the service runs its migrations with the new image before rolling it out.
+  MIGRATION_TASKS: booking-migrate
 
 jobs:
   # Works out which containers need testing/rebuilding. A container is included when its own
-  # files change; a schema migration change, or a change to the shared build files, includes all.
+  # files change; a change to the shared build files includes all.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
-      # The same list without schema-migrations, which is a job and not a service.
-      services: ${{ steps.matrix.outputs.services }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +38,6 @@ jobs:
         with:
           filters: |
             all:
-              - 'backend/schema_migrations/**'
               - 'compose.yaml'
               - 'Makefile'
               - '.github/workflows/ci.yml'
@@ -45,15 +45,12 @@ jobs:
               - 'backend/booking/**'
             vehicle:
               - 'backend/vehicle/**'
-            schema-migrations:
-              - 'backend/schema_migrations/**'
 
       - id: matrix
         env:
           ALL: ${{ steps.filter.outputs.all }}
           BOOKING: ${{ steps.filter.outputs.booking }}
           VEHICLE: ${{ steps.filter.outputs.vehicle }}
-          MIGRATIONS: ${{ steps.filter.outputs.schema-migrations }}
         run: |
           # name -> build context, in matrix order
           matrix='[]'
@@ -64,9 +61,7 @@ jobs:
           }
           add booking backend/booking "$BOOKING"
           add vehicle backend/vehicle "$VEHICLE"
-          add schema-migrations backend/schema_migrations "$MIGRATIONS"
           echo "matrix=$matrix" | tee -a "$GITHUB_OUTPUT"
-          echo "services=$(jq -c 'map(select(.name != "schema-migrations"))' <<<"$matrix")" | tee -a "$GITHUB_OUTPUT"
 
   # One parallel job per changed container; each runs its own `make test-<name>`.
   test:
@@ -131,66 +126,19 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
 
-  # Runs the new migrations before any service picks up code that may depend on them.
-  migrate:
-    needs: [changes, push]
-    if: contains(fromJSON(needs.changes.outputs.matrix).*.name, 'schema-migrations')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Run schema-migrations task
-        run: |
-          account=$(aws sts get-caller-identity --query Account --output text)
-          image="$account.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_NAMESPACE/schema-migrations:$GITHUB_SHA"
-          family="$ECS_CLUSTER-schema-migrations"
-
-          taskdef=$(aws ecs describe-task-definition --task-definition "$family" --query taskDefinition --output json \
-            | jq --arg image "$image" '
-                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-                | .containerDefinitions[0].image = $image')
-          revision=$(aws ecs register-task-definition --cli-input-json "$taskdef" --query taskDefinition.taskDefinitionArn --output text)
-
-          
-
-          # Reuse the subnets/security group of an existing service.
-          network=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services booking \
-            --query 'services[0].networkConfiguration' --output json)
-
-          task=$(aws ecs run-task --cluster "$ECS_CLUSTER" --launch-type FARGATE \
-            --task-definition "$revision" --network-configuration "$network" \
-            --query 'tasks[0].taskArn' --output text)
-          echo "Started $task"
-          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$task"
-
-          exit_code=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$task" \
-            --query 'tasks[0].containers[0].exitCode' --output text)
-          if [ "$exit_code" != "0" ]; then
-            echo "::error::migrations exited with code $exit_code (log group /ecs/$ECS_CLUSTER/schema-migrations)"
-            exit 1
-          fi
-
-  # Rolls each rebuilt service onto its new image; ECS's circuit breaker rolls back a bad deploy.
+  # Migrates and rolls each rebuilt service onto its new image; ECS's circuit breaker rolls back a
+  # bad deploy.
   deploy:
-    needs: [changes, push, migrate]
-    # migrate is skipped when the schema didn't change; that's fine, but a failure is not.
-    if: ${{ !cancelled() && needs.push.result == 'success' && needs.migrate.result != 'failure' && needs.changes.outputs.services != '[]' }}
+    needs: [changes, push]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.changes.outputs.services) }}
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -212,6 +160,31 @@ jobs:
           }
 
           revision=$(register "${{ matrix.name }}")
+
+          # Run the service's migrations with the new image before any task runs code that may
+          # depend on them, in the service's own subnets and security group.
+          # (e.g. 'booking' was rebuilt, so 'booking-migrate' runs first)
+          network=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "${{ matrix.name }}" \
+            --query 'services[0].networkConfiguration' --output json)
+          for task in $MIGRATION_TASKS; do
+            case "$task" in
+              "${{ matrix.name }}"-*)
+                task_revision=$(register "$task")
+                task_arn=$(aws ecs run-task --cluster "$ECS_CLUSTER" --launch-type FARGATE \
+                  --task-definition "$task_revision" --network-configuration "$network" \
+                  --query 'tasks[0].taskArn' --output text)
+                echo "Started $task_arn"
+                aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$task_arn"
+
+                exit_code=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$task_arn" \
+                  --query 'tasks[0].containers[0].exitCode' --output text)
+                if [ "$exit_code" != "0" ]; then
+                  echo "::error::$task exited with code $exit_code (log group /ecs/$ECS_CLUSTER/$task)"
+                  exit 1
+                fi
+                ;;
+            esac
+          done
 
           # update-service prints whole service as JSON to stdout, don't want to log.
           aws ecs update-service --cluster "$ECS_CLUSTER" --service "${{ matrix.name }}" --task-definition "$revision" > /dev/null

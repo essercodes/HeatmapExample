@@ -8,12 +8,14 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py db.py mock_api.py sync.py ./
+COPY app.py db.py migrate.py mock_api.py sync.py ./
+COPY migrations ./migrations
 
 RUN useradd --create-home app
 USER app
 
 EXPOSE 8000
 
-# Serves the API by default; override the command with `python sync.py` to run one booking sync.
+# Serves the API by default. Override the command to run a one-shot job instead:
+# `python migrate.py` applies pending migrations, `python sync.py` runs one booking sync.
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]

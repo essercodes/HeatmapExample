@@ -4,7 +4,7 @@ locals {
   azs           = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
   # Container images: one repo per image built from backend/<dir>.
-  ecr_repositories = toset(["booking", "vehicle", "schema-migrations"])
+  ecr_repositories = toset(["booking", "vehicle"])
 
   # Settings that differ between test and production.
   db_instance_class       = coalesce(var.db_instance_class, local.is_production ? "db.m7g.large" : "db.t4g.micro")

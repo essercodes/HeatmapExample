@@ -87,7 +87,7 @@ variable "booking_sync_schedule" {
 }
 
 variable "image_tags" {
-  description = "Image tag (the git SHA CI pushed) per container: booking, vehicle, schema-migrations. Only read when Terraform creates a task definition; after that CI deploys new tags (see ecs.tf), so later applies can leave this unset."
+  description = "Image tag (the git SHA CI pushed) per image repository: booking, vehicle (booking-migrate and booking-sync use the booking tag). Only read when Terraform creates a task definition; after that CI deploys new tags (see ecs.tf), so later applies can leave this unset."
   type        = map(string)
   default     = {}
 }

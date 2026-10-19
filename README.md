@@ -16,7 +16,7 @@ make arm-docker-postgis
 
 ## How to run tests locally
 ```sh
-make test  # or test-booking, test-vehicle, test-schema-migrations
+make test  # or test-booking, test-vehicle
 make down  # tests start the database container; stop it when done
 ```
 
@@ -83,9 +83,9 @@ You need AWS credentials that can assume the account's `OrganizationAccountAcces
 3. In the GitHub repo, go to Settings -> Secrets and variables -> Actions -> Variables and add the
    repository variable `AWS_ROLE_ARN` with the value of `terraform output -raw github_actions_role_arn`.
 4. Push to `main` (or re-run the workflow). The first run rebuilds every container, pushes the
-   images tagged with the commit SHA, runs the database migrations, and deploys booking and
+   images tagged with the commit SHA, runs each service's database migrations, and deploys booking and
    vehicle with the real images.
    If the images are already in ECR you can pass thier image tags to the first apply:
-   `terraform apply -var 'image_tags={booking="<sha>",vehicle="<sha>",schema-migrations="<sha>"}'`
+   `terraform apply -var 'image_tags={booking="<sha>",vehicle="<sha>"}'`
 5. Check it works: `curl "$(terraform output -raw api_url)/booking/health"` (and `/vehicle/health`).
 

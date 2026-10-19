@@ -16,9 +16,10 @@ services:
       - booking
       - vehicle
 
-  # One-shot job: applies pending migrations, then exits.
-  migrate:
-    build: ./backend/schema_migrations
+  # One-shot job: applies the booking service's pending migrations, then exits.
+  booking-migrate:
+    build: ./backend/booking
+    command: ["python", "migrate.py"]
     environment:
       DATABASE_URL: postgresql://heatmap:${DB_PASSWORD:-heatmap}@db:5432/heatmap
     depends_on:
@@ -32,7 +33,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
+      booking-migrate:
         condition: service_completed_successfully
     networks:
       default:
@@ -48,7 +49,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
+      booking-migrate:
         condition: service_completed_successfully
 
   vehicle:
@@ -58,8 +59,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     networks:
       default:
         aliases: [heatmap-vehicle]

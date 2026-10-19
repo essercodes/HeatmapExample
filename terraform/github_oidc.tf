@@ -70,7 +70,7 @@ resource "aws_iam_role_policy" "github_actions_ecr" {
       {
         Effect    = "Allow"
         Action    = "ecs:RunTask"
-        Resource  = "arn:aws:ecs:${var.region}:${var.account_id}:task-definition/${local.name}-schema-migrations:*"
+        Resource  = "${aws_ecs_task_definition.service["booking-migrate"].arn_without_revision}:*"
         Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.main.arn } }
       },
       {

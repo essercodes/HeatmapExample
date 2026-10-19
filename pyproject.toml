@@ -11,7 +11,3 @@ extraPaths = ["backend/booking"]
 [[tool.basedpyright.executionEnvironments]]
 root = "backend/vehicle"
 extraPaths = ["backend/vehicle"]
-
-[[tool.basedpyright.executionEnvironments]]
-root = "backend/schema_migrations"
-extraPaths = ["backend/schema_migrations"]

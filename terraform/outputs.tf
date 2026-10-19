@@ -4,7 +4,7 @@ output "api_url" {
 }
 
 output "ecr_repository_urls" {
-  description = "Repository URL per image (booking, vehicle, schema-migrations)."
+  description = "Repository URL per image (booking, vehicle)."
   value       = { for k, r in aws_ecr_repository.this : k => r.repository_url }
 }
 

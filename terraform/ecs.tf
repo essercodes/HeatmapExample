@@ -2,7 +2,7 @@ locals {
   # Task definition family => the ECR repository (and image_tags key) its image comes from.
   ecs_task_families = merge(
     { for name in var.api_services : name => name },
-    { "schema-migrations" = "schema-migrations", "booking-sync" = "booking" },
+    { "booking-migrate" = "booking", "booking-sync" = "booking" },
   )
 
   # RDS keeps the generated credentials as JSON in Secrets Manager; libpq reads PG* variables
@@ -15,6 +15,13 @@ locals {
     { name = "PGPORT", value = tostring(aws_db_instance.main.port) },
     { name = "PGSSLMODE", value = "require" },
   ]
+  # For one-shot jobs: healthy while the container can reach the database.
+  db_health_check = {
+    command  = ["CMD", "python", "-c", "import os, psycopg; psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=3).close()"]
+    interval = 5
+    timeout  = 4
+    retries  = 3
+  }
   container_extras = merge(
     {
       for name in var.api_services : name => {
@@ -29,15 +36,15 @@ locals {
       }
     },
     {
-      # One sync per run, started by the schedule below. Healthy while it can reach the database.
+      # Applies pending booking migrations and exits; CI runs it before each booking deploy.
+      "booking-migrate" = {
+        command     = ["python", "migrate.py"]
+        healthCheck = local.db_health_check
+      }
+      # One sync per run, started by the schedule below.
       "booking-sync" = {
-        command = ["python", "sync.py"]
-        healthCheck = {
-          command  = ["CMD", "python", "-c", "import os, psycopg; psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=3).close()"]
-          interval = 5
-          timeout  = 4
-          retries  = 3
-        }
+        command     = ["python", "sync.py"]
+        healthCheck = local.db_health_check
       }
     },
   )
@@ -131,7 +138,6 @@ resource "aws_ecs_task_definition" "service" {
         }
       }
     },
-    # The migration job runs once and exits, so it has no port or health check.
     try(local.container_extras[each.key], {}),
   )])
 
