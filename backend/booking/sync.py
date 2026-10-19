@@ -1,6 +1,7 @@
 """Sync active bookings from the (mock) upstream API into the database.
 
-Run on a schedule by cron (see entrypoint.sh): `python sync.py`.
+One sync per run: `python sync.py`. It's scheduled by EventBridge on ECS (terraform/ecs.tf)
+and by the booking-sync sidecar in compose.yaml.
 """
 from datetime import datetime
 

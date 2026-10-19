@@ -29,8 +29,6 @@ services:
     build: ./backend/booking
     environment:
       DATABASE_URL: postgresql://heatmap:${DB_PASSWORD:-heatmap}@db:5432/heatmap
-      # Cron schedule for syncing active bookings from the mock upstream API.
-      SYNC_CRON_SCHEDULE: ${SYNC_CRON_SCHEDULE:-*/5 * * * *}
     depends_on:
       db:
         condition: service_healthy
@@ -40,6 +38,18 @@ services:
       default:
         # nginx.conf routes to the container names used by the Makefile.
         aliases: [heatmap-booking]
+
+  booking-sync:
+    build: ./backend/booking
+    command: ["sh", "-c", "while :; do python sync.py; sleep ${SYNC_INTERVAL_SECONDS:-300}; done"]
+    init: true
+    environment:
+      DATABASE_URL: postgresql://heatmap:${DB_PASSWORD:-heatmap}@db:5432/heatmap
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   vehicle:
     build: ./backend/vehicle

@@ -1,18 +1,9 @@
-# ECS Fargate: one service per api_service (booking, vehicle) behind API Gateway via Cloud Map,
-# plus a task definition for the one-shot schema-migrations job.
-#
-# Terraform bootstraps the task definitions using var.image_tags (pass it on the first apply
-# only; an "unset" tag just means the service can't start until the first CI deploy) and then
-# stops managing the image: the CI deploy job registers a new revision with the freshly pushed tag and updates the
-# service (and runs migrations first), so both the task definitions' container_definitions and
-# the services' task_definition are ignored here. To change env/secrets/sizing, replace the
-# task definition and pass the tags currently running:
-#   terraform apply -replace='aws_ecs_task_definition.service["booking"]' -var 'image_tags={...}'
-# Then run the deploy workflow (or `aws ecs update-service`) to roll it out.
-# Images are built on GitHub's x86_64 runners, hence the X86_64 platform.
-
 locals {
-  ecs_task_families = toset(concat(tolist(var.api_services), ["schema-migrations"]))
+  # Task definition family => the ECR repository (and image_tags key) its image comes from.
+  ecs_task_families = merge(
+    { for name in var.api_services : name => name },
+    { "schema-migrations" = "schema-migrations", "booking-sync" = "booking" },
+  )
 
   # RDS keeps the generated credentials as JSON in Secrets Manager; libpq reads PG* variables
   # natively, so the apps need no URL. DATABASE_URL is a keyword/value conninfo string that
@@ -24,18 +15,32 @@ locals {
     { name = "PGPORT", value = tostring(aws_db_instance.main.port) },
     { name = "PGSSLMODE", value = "require" },
   ]
-  service_container_extras = {
-    for name in var.api_services : name => {
-      portMappings = [{ name = name, containerPort = var.service_port, protocol = "tcp" }]
-      healthCheck = {
-        command     = ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:${var.service_port}/health', timeout=3)"]
-        interval    = 15
-        timeout     = 5
-        retries     = 3
-        startPeriod = 30
+  container_extras = merge(
+    {
+      for name in var.api_services : name => {
+        portMappings = [{ name = name, containerPort = var.service_port, protocol = "tcp" }]
+        healthCheck = {
+          command     = ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:${var.service_port}/health', timeout=3)"]
+          interval    = 15
+          timeout     = 5
+          retries     = 3
+          startPeriod = 30
+        }
       }
-    }
-  }
+    },
+    {
+      # One sync per run, started by the schedule below. Healthy while it can reach the database.
+      "booking-sync" = {
+        command = ["python", "sync.py"]
+        healthCheck = {
+          command  = ["CMD", "python", "-c", "import os, psycopg; psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=3).close()"]
+          interval = 5
+          timeout  = 4
+          retries  = 3
+        }
+      }
+    },
+  )
   db_secrets = [
     { name = "PGUSER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
     { name = "PGPASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
@@ -113,7 +118,7 @@ resource "aws_ecs_task_definition" "service" {
   container_definitions = jsonencode([merge(
     {
       name        = each.key
-      image       = "${aws_ecr_repository.this[each.key].repository_url}:${lookup(var.image_tags, each.key, "unset")}"
+      image       = "${aws_ecr_repository.this[each.value].repository_url}:${lookup(var.image_tags, each.value, "unset")}"
       essential   = true
       environment = local.db_environment
       secrets     = local.db_secrets
@@ -126,8 +131,8 @@ resource "aws_ecs_task_definition" "service" {
         }
       }
     },
-    # The migration job runs once and exits, so only the HTTP services have a port and health check.
-    try(local.service_container_extras[each.key], {}),
+    # The migration job runs once and exits, so it has no port or health check.
+    try(local.container_extras[each.key], {}),
   )])
 
   lifecycle {
@@ -166,5 +171,67 @@ resource "aws_ecs_service" "api" {
 
   lifecycle {
     ignore_changes = [task_definition]
+  }
+}
+
+# --- Scheduled booking sync ------------------------------------------------------------
+
+# Runs the booking-sync task definition on a schedule. The revision-less ARN makes EventBridge
+# use the latest revision, which the CI deploy job registers alongside each booking deploy.
+resource "aws_iam_role" "booking_sync_events" {
+  name = "${local.name}-booking-sync-events"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "events.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "booking_sync_events" {
+  name = "run-booking-sync"
+  role = aws_iam_role.booking_sync_events.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Action    = "ecs:RunTask"
+        Resource  = "${aws_ecs_task_definition.service["booking-sync"].arn_without_revision}:*"
+        Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.main.arn } }
+      },
+      {
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = aws_iam_role.ecs_execution.arn
+      },
+    ]
+  })
+}
+
+resource "aws_cloudwatch_event_rule" "booking_sync" {
+  name                = "${local.name}-booking-sync"
+  description         = "Syncs active bookings from the upstream API into the database."
+  schedule_expression = var.booking_sync_schedule
+}
+
+resource "aws_cloudwatch_event_target" "booking_sync" {
+  rule     = aws_cloudwatch_event_rule.booking_sync.name
+  arn      = aws_ecs_cluster.main.arn
+  role_arn = aws_iam_role.booking_sync_events.arn
+
+  ecs_target {
+    task_definition_arn = aws_ecs_task_definition.service["booking-sync"].arn_without_revision
+    launch_type         = "FARGATE"
+
+    network_configuration {
+      subnets          = local.ecs_subnet_ids
+      security_groups  = [aws_security_group.services.id]
+      assign_public_ip = !local.enable_nat_gateway
+    }
   }
 }

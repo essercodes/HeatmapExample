@@ -80,6 +80,12 @@ variable "api_services" {
   default     = ["booking", "vehicle"]
 }
 
+variable "booking_sync_schedule" {
+  description = "EventBridge schedule expression for the booking sync task (`python sync.py` in the booking image)."
+  type        = string
+  default     = "rate(5 minutes)"
+}
+
 variable "image_tags" {
   description = "Image tag (the git SHA CI pushed) per container: booking, vehicle, schema-migrations. Only read when Terraform creates a task definition; after that CI deploys new tags (see ecs.tf), so later applies can leave this unset."
   type        = map(string)

@@ -15,6 +15,9 @@ env:
   # terraform: local.name = "<project>-<environment>"; the cluster has this name and the task
   # definition families are "<ECS_CLUSTER>-<container>".
   ECS_CLUSTER: heatmap-test
+  # Scheduled task families (terraform/ecs.tf), space-separated. One named "<service>-..." uses
+  # that service's image, so each deploy of the service registers it with the new image.
+  SCHEDULED_TASKS: booking-sync
 
 jobs:
   # Works out which containers need testing/rebuilding. A container is included when its own
@@ -155,6 +158,8 @@ jobs:
                 | .containerDefinitions[0].image = $image')
           revision=$(aws ecs register-task-definition --cli-input-json "$taskdef" --query taskDefinition.taskDefinitionArn --output text)
 
+          
+
           # Reuse the subnets/security group of an existing service.
           network=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services booking \
             --query 'services[0].networkConfiguration' --output json)
@@ -196,14 +201,19 @@ jobs:
         run: |
           account=$(aws sts get-caller-identity --query Account --output text)
           image="$account.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_NAMESPACE/${{ matrix.name }}:$GITHUB_SHA"
-          family="$ECS_CLUSTER-${{ matrix.name }}"
 
-          taskdef=$(aws ecs describe-task-definition --task-definition "$family" --query taskDefinition --output json \
-            | jq --arg image "$image" '
-                del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-                | .containerDefinitions[0].image = $image')
-          revision=$(aws ecs register-task-definition --cli-input-json "$taskdef" --query taskDefinition.taskDefinitionArn --output text)
+          # Registers a copy of the family's latest revision running $image; prints its ARN.
+          register() {
+            taskdef=$(aws ecs describe-task-definition --task-definition "$ECS_CLUSTER-$1" --query taskDefinition --output json \
+              | jq --arg image "$image" '
+                  del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                  | .containerDefinitions[0].image = $image')
+            aws ecs register-task-definition --cli-input-json "$taskdef" --query taskDefinition.taskDefinitionArn --output text
+          }
 
+          revision=$(register "${{ matrix.name }}")
+
+          # update-service prints whole service as JSON to stdout, don't want to log.
           aws ecs update-service --cluster "$ECS_CLUSTER" --service "${{ matrix.name }}" --task-definition "$revision" > /dev/null
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "${{ matrix.name }}"
 
@@ -214,3 +224,15 @@ jobs:
             echo "::error::${{ matrix.name }} rolled back: primary deployment is $running, expected $revision"
             exit 1
           fi
+
+          # Scheduled tasks run their family's latest revision, so move them onto the new image only
+          # once the service deployed it successfully.
+          # (e.g. 'booking' was rebuilt and deployed, so 'booking-sync' gets a new revision)
+          for task in $SCHEDULED_TASKS; do
+            case "$task" in
+              "${{ matrix.name }}"-*)
+                task_revision=$(register "$task")
+                echo "Registered $task_revision"
+                ;;
+            esac
+          done
