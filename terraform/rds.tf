@@ -14,7 +14,7 @@ resource "aws_db_instance" "main" {
   storage_type      = "gp3"
   storage_encrypted = true
 
-  # Matches POSTGRES_DB / POSTGRES_USER in backend/database/Dockerfile.
+  # Matches POSTGRES_DB / POSTGRES_USER in containers/database/Dockerfile.
   db_name  = "heatmap"
   username = "heatmap"
 

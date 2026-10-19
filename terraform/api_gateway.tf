@@ -1,4 +1,4 @@
-# Replaces backend/api_gateway/nginx.conf: /<service>/... is routed to the matching
+# Replaces containers/api_gateway/nginx.conf: /<service>/... is routed to the matching
 # service with the prefix stripped. Traffic goes API Gateway -> VPC link -> Cloud Map (SRV)
 # -> ECS tasks. The ECS services (next step) must set `service_registries.registry_arn`
 # to aws_service_discovery_service.api["<name>"].arn.

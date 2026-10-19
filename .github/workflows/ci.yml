@@ -9,6 +9,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Explicit bash runs steps with -eo pipefail
+defaults:
+  run:
+    shell: bash
+
 env:
   AWS_REGION: us-east-1
   ECR_NAMESPACE: heatmap
@@ -42,9 +47,9 @@ jobs:
               - 'Makefile'
               - '.github/workflows/ci.yml'
             booking:
-              - 'backend/booking/**'
+              - 'containers/booking/**'
             vehicle:
-              - 'backend/vehicle/**'
+              - 'containers/vehicle/**'
 
       - id: matrix
         env:
@@ -59,8 +64,8 @@ jobs:
               matrix=$(jq -c --arg n "$1" --arg c "$2" '. + [{name: $n, context: $c}]' <<<"$matrix")
             fi
           }
-          add booking backend/booking "$BOOKING"
-          add vehicle backend/vehicle "$VEHICLE"
+          add booking containers/booking "$BOOKING"
+          add vehicle containers/vehicle "$VEHICLE"
           echo "matrix=$matrix" | tee -a "$GITHUB_OUTPUT"
 
   # One parallel job per changed container; each runs its own `make test-<name>`.

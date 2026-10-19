@@ -5,9 +5,9 @@ venv = "venv"
 
 # Each service is run from its own directory (flat imports such as `from db import ...`).
 [[tool.basedpyright.executionEnvironments]]
-root = "backend/booking"
-extraPaths = ["backend/booking"]
+root = "containers/booking"
+extraPaths = ["containers/booking"]
 
 [[tool.basedpyright.executionEnvironments]]
-root = "backend/vehicle"
-extraPaths = ["backend/vehicle"]
+root = "containers/vehicle"
+extraPaths = ["containers/vehicle"]

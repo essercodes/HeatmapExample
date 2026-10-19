@@ -11,7 +11,7 @@ __pycache__
 
 # React Router
 node_modules/
-frontend/.react-router/
+containers/frontend/.react-router/
 
 # pnpm
 .pnpm-store/

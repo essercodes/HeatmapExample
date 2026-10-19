@@ -3,7 +3,7 @@ locals {
   name          = "${var.project}-${var.environment}"
   azs           = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
-  # Container images: one repo per image built from backend/<dir>.
+  # Container images: one repo per image built from containers/<dir>.
   ecr_repositories = toset(["booking", "vehicle"])
 
   # Settings that differ between test and production.

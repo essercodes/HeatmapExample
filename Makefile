@@ -25,7 +25,7 @@ venv:
 install-python-dependencies: install-booking install-vehicle
 
 install-%: venv
-	. ./venv/bin/activate && pip install --no-cache-dir -r ./backend/$(subst -,_,$*)/requirements-dev.txt
+	. ./venv/bin/activate && pip install --no-cache-dir -r ./containers/$(subst -,_,$*)/requirements-dev.txt
 
 # Just the database, for integration tests (starts it if needed, waits until healthy).
 db:
@@ -34,11 +34,11 @@ db:
 test: test-booking # test-vehicle
 
 test-booking: install-booking db
-	cd backend/booking && ../../venv/bin/python -m pytest
+	cd containers/booking && ../../venv/bin/python -m pytest
 
 # vehicle has no tests yet
 # test-vehicle: install-vehicle db
-# 	cd backend/vehicle && ../../venv/bin/python -m pytest
+# 	cd containers/vehicle && ../../venv/bin/python -m pytest
 
 arm-docker-postgis:
 	cd docker-postgis && \

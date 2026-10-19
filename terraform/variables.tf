@@ -75,7 +75,7 @@ variable "service_port" {
 }
 
 variable "api_services" {
-  description = "Backend services exposed through API Gateway at /<name>/..., mirroring backend/api_gateway/nginx.conf."
+  description = "Backend services exposed through API Gateway at /<name>/..., mirroring containers/api_gateway/nginx.conf."
   type        = set(string)
   default     = ["booking", "vehicle"]
 }

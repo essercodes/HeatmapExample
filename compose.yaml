@@ -2,14 +2,14 @@ name: heatmap
 
 services:
   frontend:
-    build: ./frontend
+    build: ./containers/frontend
     ports:
       - "8080:3000"
     depends_on:
       - gateway
 
   gateway:
-    build: ./backend/api_gateway
+    build: ./containers/api_gateway
     ports:
       - "8081:8081"
     depends_on:
@@ -18,7 +18,7 @@ services:
 
   # One-shot job: applies the booking service's pending migrations, then exits.
   booking-migrate:
-    build: ./backend/booking
+    build: ./containers/booking
     command: ["python", "migrate.py"]
     environment:
       DATABASE_URL: postgresql://heatmap:${DB_PASSWORD:-heatmap}@db:5432/heatmap
@@ -27,7 +27,7 @@ services:
         condition: service_healthy
 
   booking:
-    build: ./backend/booking
+    build: ./containers/booking
     environment:
       DATABASE_URL: postgresql://heatmap:${DB_PASSWORD:-heatmap}@db:5432/heatmap
     depends_on:
@@ -41,7 +41,7 @@ services:
         aliases: [heatmap-booking]
 
   booking-sync:
-    build: ./backend/booking
+    build: ./containers/booking
     command: ["sh", "-c", "while :; do python sync.py; sleep ${SYNC_INTERVAL_SECONDS:-300}; done"]
     init: true
     environment:
@@ -53,7 +53,7 @@ services:
         condition: service_completed_successfully
 
   vehicle:
-    build: ./backend/vehicle
+    build: ./containers/vehicle
     environment:
       DATABASE_URL: postgresql://heatmap:${DB_PASSWORD:-heatmap}@db:5432/heatmap
     depends_on:
@@ -64,7 +64,7 @@ services:
         aliases: [heatmap-vehicle]
 
   db:
-    build: ./backend/database
+    build: ./containers/database
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-heatmap}
     ports:
