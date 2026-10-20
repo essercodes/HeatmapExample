@@ -1,6 +1,8 @@
 # Heatmap Example
 
+## Links to Deployment
 [frontend](https://d3dtufqyf97rqt.cloudfront.net)
+
 [api](https://ta6vnix4hb.execute-api.us-east-1.amazonaws.com)
 
 ## How to run locally
@@ -23,12 +25,27 @@ make test  # or test-booking, test-vehicle, test-frontend
 make down  # tests start the database container; stop it when done
 ```
 
+## CI/CD (Github Actions)
+On a push to the main branch github actions run a job with theses steps:
+
+1) Check changes. CI/CD only run steps for containers that changed. However, there are some catch
+all cases.
+2) Test. actions run `make test-<container>` for each container that had changes.
+3) Build. if changes were pushed to main, actions build containers and push them to AWS ECR.
+4) Deploy.
+    1) Run any new database migrations (same container, but changes CMD to `migrate.py`).
+    2) Copies & updates ECS task definitions of *service* containers, updating and running with new
+    immutable containers tag (the git sha). Then waits for stable deployment.
+    3) Copies & updates ECS task definitions of *sync* containers (same container, but changes CMD
+    to `sync.py`).
+
+
 ## Development
 These development notes expect you are running inside the ubuntu devcontainer environment.
 
 ### Using the devcontainer
 You will need to have the [devcontainer cli](https://github.com/devcontainers/cli) installed.
-You will need to have the [dca command](https://github.com/essercodes/devcontainer) on $PATH.
+and the [dca script](https://github.com/essercodes/devcontainer) on $PATH.
 
 ```sh
 devcontainer up
