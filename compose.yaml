@@ -7,8 +7,11 @@ services:
       - "8080:3000"
     environment:
       POLL_TIME_MIN: ${POLL_TIME_MIN:-5}
+      # Used by the browser, so it must be the gateway's published port, not the service name.
+      API_URL: http://127.0.0.1:8081
     depends_on:
       - gateway
+    profiles: ["frontend"]
 
   gateway:
     build: ./containers/api_gateway
@@ -17,6 +20,7 @@ services:
     depends_on:
       - booking
       - vehicle
+    profiles: ["backend"]
 
   # One-shot job: applies the booking service's pending migrations, then exits.
   booking-migrate:
@@ -27,6 +31,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    profiles: ["backend"]
 
   booking:
     build: ./containers/booking
@@ -41,6 +46,7 @@ services:
       default:
         # nginx.conf routes to the container names used by the Makefile.
         aliases: [heatmap-booking]
+    profiles: ["backend"]
 
   booking-sync:
     build: ./containers/booking
@@ -53,6 +59,7 @@ services:
         condition: service_healthy
       booking-migrate:
         condition: service_completed_successfully
+    profiles: ["backend"]
 
   vehicle:
     build: ./containers/vehicle
@@ -64,6 +71,7 @@ services:
     networks:
       default:
         aliases: [heatmap-vehicle]
+    profiles: ["backend"]
 
   db:
     build: ./containers/database
@@ -78,6 +86,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    profiles: ["backend"]
 
 volumes:
   db-data:

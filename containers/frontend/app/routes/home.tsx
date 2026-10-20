@@ -1,10 +1,10 @@
-import { useFetcher } from "react-router";
 import type { Route } from "./+types/home";
 import HeatMap from "../components/HeatMap";
 import TimeSlider from "../components/TimeSlider";
 import VehicleTypeFilter from "../components/VehicleTypeFilter";
 
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { API_URL as API_URL_ENV } from "~/lib/api.server";
 
 export function meta() {
     return [
@@ -34,17 +34,17 @@ export async function loader() {
     if (!Number.isFinite(POLL_TIME_MIN)) {
         throw new Error(`POLL_TIME_MIN must be a number, got "${process.env.POLL_TIME_MIN}"`);
     }
+    const API_URL = API_URL_ENV ?? "NOT SET";
 
-    return { POLL_TIME_MIN };
+    return { POLL_TIME_MIN, API_URL };
 }
 
 const minutes_to_milliseconds = (m: number) => m * 60000;
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-    const { POLL_TIME_MIN } = loaderData;
-    // const fetcher = useFetcher<typeof loader>();
+    const { POLL_TIME_MIN, API_URL } = loaderData;
 
-    const defaultSliderValues: [number, number] = [0, 2];
+    const defaultSliderValues: [number, number] = [0, 3];
 
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -119,6 +119,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <div className="flex flex-col h-dvh typeset typeset-docs pb-11">
             <div className="flex grow justify-center">
                 <div className="flex flex-col-reverse md:flex-col min-w-full justify-start gap-2">
+                    <div className="type">{API_URL}</div>
                     <TimeSlider bucket={bucket} setSteps={setSteps} defaultValues={defaultSliderValues} />
                     <VehicleTypeFilter vehicleTypes={vehicleTypes} hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
 

@@ -52,7 +52,10 @@ locals {
       }
       "frontend" = {
         portMappings = [{ name = "frontend", containerPort = var.frontend_port, protocol = "tcp" }]
-        environment  = [{ name = "POLL_TIME_MIN", value = tostring(var.poll_time_min) }]
+        environment = [
+          { name = "POLL_TIME_MIN", value = tostring(var.poll_time_min) },
+          { name = "API_URL", value = aws_apigatewayv2_api.main.api_endpoint },
+        ]
         healthCheck = {
           command     = ["CMD", "node", "healthcheck.js"]
           interval    = 15
