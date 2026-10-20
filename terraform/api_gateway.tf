@@ -34,6 +34,15 @@ resource "aws_apigatewayv2_vpc_link" "main" {
 resource "aws_apigatewayv2_api" "main" {
   name          = local.name
   protocol_type = "HTTP"
+
+  # The browser calls the API directly from the frontend's origin. API Gateway answers
+  # preflight requests itself and ignores CORS headers from the services.
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET", "PUT", "OPTIONS"]
+    allow_headers = ["content-type"]
+    max_age       = 3600
+  }
 }
 
 resource "aws_apigatewayv2_integration" "api" {
