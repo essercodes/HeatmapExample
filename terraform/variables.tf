@@ -80,6 +80,12 @@ variable "frontend_port" {
   default     = 3000
 }
 
+variable "poll_time_min" {
+  description = "Minutes between the frontend's booking refreshes; 0 disables polling."
+  type        = number
+  default     = 5
+}
+
 variable "api_services" {
   description = "Backend services exposed through API Gateway at /<name>/..., mirroring containers/api_gateway/nginx.conf."
   type        = set(string)

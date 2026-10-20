@@ -1,5 +1,8 @@
 # Heatmap Example
 
+[frontend](https://d3dtufqyf97rqt.cloudfront.net)
+[api](https://ta6vnix4hb.execute-api.us-east-1.amazonaws.com)
+
 ## How to run locally
 ```sh
 make up      # start all services (fresh containers always built)
@@ -32,6 +35,12 @@ devcontainer up
 dca
 ```
 
+### Run Vite for Frontend
+```sh
+cd containers
+pnpm run dev --host --port 8080
+```
+
 ### Installing Development Dependencies
 ```sh
 make install-python-dependencies
@@ -50,13 +59,6 @@ pip install basedpyright
 
 claude plugin marketplace add datacas/claude-basedpyright-lsp
 claude plugin install basedpyright-lsp@basedpyright-marketplace
-```
-
-## op init aws
-
-```sh
-OP_SERVICE_ACCOUNT_TOKEN=$(cat /home/max/op_secret) op --account my.1password.com plugin init aws
-# echo "source /home/max/.config/op/plugins.sh" >> ~/.bashrc && source ~/.bashrc
 ```
 
 ## Deploying to AWS

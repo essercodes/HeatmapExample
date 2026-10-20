@@ -5,6 +5,8 @@ services:
     build: ./containers/frontend
     ports:
       - "8080:3000"
+    environment:
+      POLL_TIME_MIN: ${POLL_TIME_MIN:-5}
     depends_on:
       - gateway
 

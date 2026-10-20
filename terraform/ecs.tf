@@ -52,6 +52,7 @@ locals {
       }
       "frontend" = {
         portMappings = [{ name = "frontend", containerPort = var.frontend_port, protocol = "tcp" }]
+        environment  = [{ name = "POLL_TIME_MIN", value = tostring(var.poll_time_min) }]
         healthCheck = {
           command     = ["CMD", "node", "healthcheck.js"]
           interval    = 15
