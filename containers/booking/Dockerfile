@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py db.py migrate.py mock_api.py sync.py ./
+COPY app.py db.py healthcheck.py migrate.py mock_api.py sync.py ./
 COPY migrations ./migrations
 
 RUN useradd --create-home app

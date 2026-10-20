@@ -51,6 +51,17 @@ def test_returns_503_when_database_unavailable(
     assert "error" in json_object(response)
 
 
+def test_live(client: FlaskClient) -> None:
+    response = client.get("/live")
+    assert response.status_code == 200
+    assert json_object(response) == {"status": "ok"}
+
+
+@pytest.mark.usefixtures("db_down")
+def test_live_when_database_unavailable(client: FlaskClient) -> None:
+    assert client.get("/live").status_code == 200
+
+
 @pytest.mark.usefixtures("db_down")
 def test_health_degraded_when_database_unavailable(client: FlaskClient) -> None:
     response = client.get("/health")

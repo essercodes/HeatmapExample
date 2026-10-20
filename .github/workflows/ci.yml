@@ -50,12 +50,15 @@ jobs:
               - 'containers/booking/**'
             vehicle:
               - 'containers/vehicle/**'
+            frontend:
+              - 'containers/frontend/**'
 
       - id: matrix
         env:
           ALL: ${{ steps.filter.outputs.all }}
           BOOKING: ${{ steps.filter.outputs.booking }}
           VEHICLE: ${{ steps.filter.outputs.vehicle }}
+          FRONTEND: ${{ steps.filter.outputs.frontend }}
         run: |
           # name -> build context, in matrix order
           matrix='[]'
@@ -66,6 +69,7 @@ jobs:
           }
           add booking containers/booking "$BOOKING"
           add vehicle containers/vehicle "$VEHICLE"
+          add frontend containers/frontend "$FRONTEND"
           echo "matrix=$matrix" | tee -a "$GITHUB_OUTPUT"
 
   # One parallel job per changed container; each runs its own `make test-<name>`.
@@ -82,8 +86,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
+        if: matrix.name != 'frontend'
         with:
           python-version: "3.13"
+
+      - uses: pnpm/action-setup@v4
+        if: matrix.name == 'frontend'
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        if: matrix.name == 'frontend'
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: containers/frontend/pnpm-lock.yaml
 
       - name: make test-${{ matrix.name }}
         run: make test-${{ matrix.name }}

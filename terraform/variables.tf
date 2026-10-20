@@ -74,6 +74,12 @@ variable "service_port" {
   default     = 8000
 }
 
+variable "frontend_port" {
+  description = "Port the frontend container listens on (react-router-serve)."
+  type        = number
+  default     = 3000
+}
+
 variable "api_services" {
   description = "Backend services exposed through API Gateway at /<name>/..., mirroring containers/api_gateway/nginx.conf."
   type        = set(string)
@@ -87,7 +93,7 @@ variable "booking_sync_schedule" {
 }
 
 variable "image_tags" {
-  description = "Image tag (the git SHA CI pushed) per image repository: booking, vehicle (booking-migrate and booking-sync use the booking tag). Only read when Terraform creates a task definition; after that CI deploys new tags (see ecs.tf), so later applies can leave this unset."
+  description = "Image tag (the git SHA CI pushed) per image repository: booking, vehicle, frontend (booking-migrate and booking-sync use the booking tag). Only read when Terraform creates a task definition; after that CI deploys new tags (see ecs.tf), so later applies can leave this unset."
   type        = map(string)
   default     = {}
 }

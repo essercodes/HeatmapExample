@@ -1,6 +1,6 @@
 main: up
 
-.PHONY: test test-booking test-vehicle migrate migrate-booking db venv install-python-dependencies
+.PHONY: test test-booking test-vehicle test-frontend migrate migrate-booking db venv install-python-dependencies
 
 up:
 	docker compose up --build -d
@@ -31,10 +31,13 @@ install-%: venv
 db:
 	docker compose up -d --wait db
 
-test: test-booking # test-vehicle
+test: test-booking test-frontend # test-vehicle
 
 test-booking: install-booking db
 	cd containers/booking && ../../venv/bin/python -m pytest
+
+test-frontend:
+	cd containers/frontend && pnpm install --frozen-lockfile && pnpm run typecheck
 
 # vehicle has no tests yet
 # test-vehicle: install-vehicle db

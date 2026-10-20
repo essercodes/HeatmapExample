@@ -114,6 +114,22 @@ resource "aws_security_group" "vpc_link" {
   lifecycle { create_before_destroy = true }
 }
 
+resource "aws_security_group" "frontend" {
+  name_prefix = "${local.name}-frontend-"
+  description = "Frontend containers (no database access)"
+  vpc_id      = aws_vpc.main.id
+
+  lifecycle { create_before_destroy = true }
+}
+
+resource "aws_security_group" "alb" {
+  name_prefix = "${local.name}-alb-"
+  description = "Load balancer for the frontend (CloudFront origin)"
+  vpc_id      = aws_vpc.main.id
+
+  lifecycle { create_before_destroy = true }
+}
+
 resource "aws_security_group" "db" {
   name_prefix = "${local.name}-db-"
   description = "RDS PostGIS"
@@ -145,6 +161,46 @@ resource "aws_vpc_security_group_egress_rule" "vpc_link_to_services" {
   from_port                    = var.service_port
   to_port                      = var.service_port
   description                  = "VPC link to containers"
+}
+
+# CloudFront's origin-facing IP ranges, so the ALB can't be reached around CloudFront. The list
+# counts as ~55 rules toward the security group's rule quota (60 by default).
+data "aws_ec2_managed_prefix_list" "cloudfront" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+  security_group_id = aws_security_group.alb.id
+  prefix_list_id    = data.aws_ec2_managed_prefix_list.cloudfront.id
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+  description       = "CloudFront to load balancer"
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_to_frontend" {
+  security_group_id            = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.frontend.id
+  ip_protocol                  = "tcp"
+  from_port                    = var.frontend_port
+  to_port                      = var.frontend_port
+  description                  = "Load balancer to frontend containers"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "frontend_from_alb" {
+  security_group_id            = aws_security_group.frontend.id
+  referenced_security_group_id = aws_security_group.alb.id
+  ip_protocol                  = "tcp"
+  from_port                    = var.frontend_port
+  to_port                      = var.frontend_port
+  description                  = "Load balancer to frontend containers"
+}
+
+resource "aws_vpc_security_group_egress_rule" "frontend_all" {
+  security_group_id = aws_security_group.frontend.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+  description       = "ECR pulls, CloudWatch Logs"
 }
 
 resource "aws_vpc_security_group_ingress_rule" "db_from_services" {

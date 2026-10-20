@@ -10,6 +10,12 @@ from mock_api import fetch_booking
 
 app = Flask(__name__)
 
+@app.get("/live")
+def live():
+    """Liveness: the server is answering requests. Doesn't touch the database, unlike /health."""
+    return jsonify(status="ok")
+
+
 @app.get("/health")
 def health():
     try:

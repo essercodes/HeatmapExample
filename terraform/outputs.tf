@@ -3,8 +3,13 @@ output "api_url" {
   value       = aws_apigatewayv2_api.main.api_endpoint
 }
 
+output "frontend_url" {
+  description = "HTTPS URL of the frontend (CloudFront's AWS-assigned domain)."
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+}
+
 output "ecr_repository_urls" {
-  description = "Repository URL per image (booking, vehicle)."
+  description = "Repository URL per image (booking, vehicle, frontend)."
   value       = { for k, r in aws_ecr_repository.this : k => r.repository_url }
 }
 

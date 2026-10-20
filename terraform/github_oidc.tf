@@ -65,7 +65,7 @@ resource "aws_iam_role_policy" "github_actions_ecr" {
       {
         Effect   = "Allow"
         Action   = ["ecs:DescribeServices", "ecs:UpdateService"]
-        Resource = [for s in aws_ecs_service.api : s.id]
+        Resource = concat([for s in aws_ecs_service.api : s.id], [aws_ecs_service.frontend.id])
       },
       {
         Effect    = "Allow"

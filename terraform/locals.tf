@@ -4,7 +4,7 @@ locals {
   azs           = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
   # Container images: one repo per image built from containers/<dir>.
-  ecr_repositories = toset(["booking", "vehicle"])
+  ecr_repositories = toset(["booking", "vehicle", "frontend"])
 
   # Settings that differ between test and production.
   db_instance_class       = coalesce(var.db_instance_class, local.is_production ? "db.m7g.large" : "db.t4g.micro")
@@ -21,4 +21,6 @@ locals {
   ecs_desired_count       = local.is_production ? 2 : 1
   ecs_log_retention_days  = local.is_production ? 90 : 14
   ecs_subnet_ids          = local.enable_nat_gateway ? aws_subnet.private[*].id : aws_subnet.public[*].id
+  alb_deletion_protection = local.is_production
+  cloudfront_price_class  = local.is_production ? "PriceClass_All" : "PriceClass_100"
 }

@@ -1,9 +1,3 @@
-# Heatmap example infrastructure on AWS: ECR repos, VPC, RDS PostGIS, and an HTTP API
-# (API Gateway) in front of the ECS services. ECS cluster/services are added in a later step.
-#
-# Test/example by default. Set `environment = "production"` for production-grade settings
-# (see locals.tf for exactly what changes).
-
 terraform {
   required_version = ">= 1.5"
 

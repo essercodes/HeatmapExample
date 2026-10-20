@@ -3,7 +3,11 @@ locals {
   ecs_task_families = merge(
     { for name in var.api_services : name => name },
     { "booking-migrate" = "booking", "booking-sync" = "booking" },
+    { "frontend" = "frontend" },
   )
+
+  # Task families that get no database environment or credentials.
+  db_free_families = toset(["frontend"])
 
   # RDS keeps the generated credentials as JSON in Secrets Manager; libpq reads PG* variables
   # natively, so the apps need no URL. DATABASE_URL is a keyword/value conninfo string that
@@ -17,7 +21,7 @@ locals {
   ]
   # For one-shot jobs: healthy while the container can reach the database.
   db_health_check = {
-    command  = ["CMD", "python", "-c", "import os, psycopg; psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=3).close()"]
+    command  = ["CMD", "python", "healthcheck.py", "db"]
     interval = 5
     timeout  = 4
     retries  = 3
@@ -27,7 +31,7 @@ locals {
       for name in var.api_services : name => {
         portMappings = [{ name = name, containerPort = var.service_port, protocol = "tcp" }]
         healthCheck = {
-          command     = ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:${var.service_port}/health', timeout=3)"]
+          command     = ["CMD", "python", "healthcheck.py"]
           interval    = 15
           timeout     = 5
           retries     = 3
@@ -45,6 +49,16 @@ locals {
       "booking-sync" = {
         command     = ["python", "sync.py"]
         healthCheck = local.db_health_check
+      }
+      "frontend" = {
+        portMappings = [{ name = "frontend", containerPort = var.frontend_port, protocol = "tcp" }]
+        healthCheck = {
+          command     = ["CMD", "node", "healthcheck.js"]
+          interval    = 15
+          timeout     = 5
+          retries     = 3
+          startPeriod = 30
+        }
       }
     },
   )
@@ -124,11 +138,9 @@ resource "aws_ecs_task_definition" "service" {
 
   container_definitions = jsonencode([merge(
     {
-      name        = each.key
-      image       = "${aws_ecr_repository.this[each.value].repository_url}:${lookup(var.image_tags, each.value, "unset")}"
-      essential   = true
-      environment = local.db_environment
-      secrets     = local.db_secrets
+      name      = each.key
+      image     = "${aws_ecr_repository.this[each.value].repository_url}:${lookup(var.image_tags, each.value, "unset")}"
+      essential = true
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -137,6 +149,10 @@ resource "aws_ecs_task_definition" "service" {
           "awslogs-stream-prefix" = each.key
         }
       }
+    },
+    contains(local.db_free_families, each.key) ? {} : {
+      environment = local.db_environment
+      secrets     = local.db_secrets
     },
     try(local.container_extras[each.key], {}),
   )])
@@ -174,6 +190,39 @@ resource "aws_ecs_service" "api" {
     container_name = each.key
     container_port = var.service_port
   }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+}
+
+# Public web frontend, served through its own load balancer (frontend.tf), not API Gateway.
+resource "aws_ecs_service" "frontend" {
+  name                              = "frontend"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.service["frontend"].arn
+  desired_count                     = local.ecs_desired_count
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 60
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  network_configuration {
+    subnets          = local.ecs_subnet_ids
+    security_groups  = [aws_security_group.frontend.id]
+    assign_public_ip = !local.enable_nat_gateway
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.frontend.arn
+    container_name   = "frontend"
+    container_port   = var.frontend_port
+  }
+
+  depends_on = [aws_lb_listener.frontend_http]
 
   lifecycle {
     ignore_changes = [task_definition]

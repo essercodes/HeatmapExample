@@ -10,6 +10,12 @@ app = Flask(__name__)
 _store: dict[str, object] = {}
 
 
+@app.get("/live")
+def live():
+    """Liveness: the server is answering requests. Doesn't touch the database, unlike /health."""
+    return jsonify(status="ok")
+
+
 @app.get("/health")
 def health():
     try:
