@@ -1,4 +1,5 @@
 from contextlib import AbstractContextManager
+from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from typing import cast
 
@@ -127,3 +128,44 @@ def test_put_ignores_request_body(client: FlaskClient) -> None:
     body = json_object(response)
     assert body["trip_id"] == "trip-1"
     assert body["status"] != "hacked"
+
+
+def epoch_ms(value: datetime) -> int:
+    return int(value.timestamp() * 1000)
+
+
+@pytest.mark.usefixtures("db_down")
+def test_window_returns_503_when_database_unavailable(client: FlaskClient) -> None:
+    response = client.get("/data/window?bucketStart=0&bucketEnd=1")
+    assert response.status_code == 503
+
+
+@pytest.mark.parametrize(
+    "query", ["", "?bucketStart=0", "?bucketEnd=1", "?bucketStart=a&bucketEnd=1"]
+)
+def test_window_rejects_missing_or_invalid_bounds(client: FlaskClient, query: str) -> None:
+    response = client.get(f"/data/window{query}")
+    assert response.status_code == 400
+    assert "error" in json_object(response)
+
+
+def test_window_returns_bookings_in_range(
+    client: FlaskClient, conn: Connection
+) -> None:
+    start = datetime(2026, 1, 1, 12, 0)
+    insert = """
+        INSERT INTO bookings (trip_id, pickup_lat, pickup_lng, booking_vehicletype, bookingdate_ms)
+        VALUES (%s, %s, %s, %s, %s)
+    """
+    _ = conn.execute(insert, ("before", 1.0, 2.0, "van", start - timedelta(seconds=1)))
+    _ = conn.execute(insert, ("at-start", 3.5, 4.5, "sedan", start))
+    _ = conn.execute(insert, ("at-end", 5.0, 6.0, "van", start + timedelta(minutes=15)))
+
+    end = start + timedelta(minutes=15)
+    response = client.get(
+        f"/data/window?bucketStart={epoch_ms(start)}&bucketEnd={epoch_ms(end)}"
+    )
+    assert response.status_code == 200
+    assert json_list(response) == [
+        {"pickup_lng": 4.5, "pickup_lat": 3.5, "vehicle_type": "sedan"}
+    ]

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from psycopg import Error as DBError
 from psycopg.rows import dict_row
 from psycopg_pool import PoolTimeout
@@ -35,6 +35,39 @@ def list_data():
         with get_conn(timeout=2) as conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 rows = cur.execute("SELECT * FROM bookings").fetchall()
+
+    except (DBError, PoolTimeout) as exc:
+        return jsonify(error=str(exc)), 503
+
+    return jsonify(rows)
+
+
+@app.get("/data/window")
+def list_window():
+    """
+    Pick up the pickup location and vehicle type of bookings in [bucketStart, bucketEnd).
+    Both bounds are unix timestamps in milliseconds.
+    """
+    bucket_start = request.args.get("bucketStart", type=int)
+    bucket_end = request.args.get("bucketEnd", type=int)
+    if bucket_start is None or bucket_end is None:
+        return jsonify(error="bucketStart and bucketEnd must be integer millisecond timestamps"), 400
+
+    # bookingdate_ms is a naive timestamp in server-local time (see mock_api), so compare likewise.
+    start = datetime.fromtimestamp(bucket_start / 1000)
+    end = datetime.fromtimestamp(bucket_end / 1000)
+
+    try:
+        with get_conn(timeout=2) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                rows = cur.execute(
+                    """
+                    SELECT pickup_lng, pickup_lat, booking_vehicletype AS vehicle_type
+                    FROM bookings
+                    WHERE bookingdate_ms >= %s AND bookingdate_ms < %s
+                    """,
+                    (start, end),
+                ).fetchall()
 
     except (DBError, PoolTimeout) as exc:
         return jsonify(error=str(exc)), 503

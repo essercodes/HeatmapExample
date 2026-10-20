@@ -1,9 +1,10 @@
 import type { Route } from "./+types/home";
 import HeatMap from "../components/HeatMap";
+import type { HeatMapBooking } from "../components/HeatMapClient";
 import TimeSlider from "../components/TimeSlider";
 import VehicleTypeFilter from "../components/VehicleTypeFilter";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { API_URL as API_URL_ENV } from "~/lib/api.server";
 
 export function meta() {
@@ -47,11 +48,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     const defaultSliderValues: [number, number] = [0, 3];
 
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
+    // Only the latest request may set bookings, so a slow response can't overwrite a newer one.
+    const requestIdRef = useRef(0);
 
     const [lastUpdated, setLastUpdated] = useState<number | null>();
     const [steps, setSteps] = useState<[number, number]>(defaultSliderValues);
     const [bucket, setBucket] = useState<TimeBucket | undefined>(undefined);
     const [hiddenVehicleTypes, setHiddenVehicleTypes] = useState<ReadonlySet<string>>(new Set());
+    const [allBookings, setAllBookings] = useState<HeatMapBooking[]>([]);
 
     const toBucket = ([window_start, window_end]: [number, number]): TimeBucket => {
         const now = Date.now();
@@ -64,22 +68,45 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         }
     }
 
-    const fetcherLoad = useEffectEvent(() => {
+    const fetchBookings = async () => {
         const nextBucket = toBucket(steps);
         setBucket(nextBucket);
-        setLastUpdated(Date.now());
-        // fetcher.load(`/api/bookings?bucketStart=${nextBucket.bucketStart}&bucketEnd=${nextBucket.bucketEnd}`)
-    });
+        const requestId = ++requestIdRef.current;
+
+        try {
+            const response = await fetch(
+                `${API_URL}/booking/data/window?bucketStart=${nextBucket.bucketStart}&bucketEnd=${nextBucket.bucketEnd}`
+            );
+            if (requestId !== requestIdRef.current) return;
+
+            if (response.status === 400 || response.status === 503) {
+                const body: { error?: string } = await response.json().catch(() => ({}));
+                alert(`Couldn't load bookings (${response.status}): ${body.error ?? response.statusText}`);
+                return;
+            }
+            if (!response.ok) {
+                console.error(`Couldn't load bookings: ${response.status} ${response.statusText}`);
+                return;
+            }
+
+            const nextBookings: HeatMapBooking[] = await response.json();
+            if (requestId !== requestIdRef.current) return;
+            setAllBookings(nextBookings);
+            setLastUpdated(Date.now());
+        } catch (error) {
+            console.error("Couldn't load bookings:", error);
+        }
+    };
 
     useEffect(() => {
         if (POLL_TIME_MIN <= 0) return;
 
         // Fetch now (login, slider change, tab visible again), then keep polling.
-        fetcherLoad();
+        void fetchBookings();
 
         const startPolling = () => {
             pollingRef.current = setInterval(() => {
-                fetcherLoad();
+                void fetchBookings();
             }, minutes_to_milliseconds(POLL_TIME_MIN))
         }
         startPolling();
@@ -95,16 +122,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`
     }
 
-    // Error responses from /api/bookings don't carry bookings or vehicleTypes.
-    /* const bookingsData = fetcher.data?.ok ? fetcher.data : undefined;
-    const vehicleTypes = bookingsData?.vehicleTypes ?? [];
-    const allBookings = bookingsData?.bookings;
+    const vehicleTypes = ["R", "ATS", "D", "S", "V"]; // TODO: pull from /vehicles/...
+
     const bookings = useMemo(
-        () => (allBookings ?? []).filter((booking) => !hiddenVehicleTypes.has(booking.vehicle_type)),
+        () => allBookings.filter((booking) => !hiddenVehicleTypes.has(booking.vehicle_type)),
         [allBookings, hiddenVehicleTypes],
-    ); */
-    const vehicleTypes = ["R", "V", "S", "D", "ATS"];
-    const bookings: { pickup_lng: number; pickup_lat: number; vehicle_type: string }[] = [];
+    );
 
     const toggleVehicleType = (vehicleType: string, shown: boolean) => {
         setHiddenVehicleTypes((prev) => {
@@ -119,7 +142,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <div className="flex flex-col h-dvh typeset typeset-docs pb-11">
             <div className="flex grow justify-center">
                 <div className="flex flex-col-reverse md:flex-col min-w-full justify-start gap-2">
-                    <div className="type">{API_URL}</div>
                     <TimeSlider bucket={bucket} setSteps={setSteps} defaultValues={defaultSliderValues} />
                     <VehicleTypeFilter vehicleTypes={vehicleTypes} hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
 

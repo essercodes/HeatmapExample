@@ -92,3 +92,8 @@ You need AWS credentials that can assume the account's `OrganizationAccountAcces
 5. Check it works: `curl "$(terraform output -raw api_url)/booking/health"` (and `/vehicle/health`).
 6. Check the frontend: `terraform output -raw frontend_url`
 
+### Gotchas
+- If ecs task definitions (like environment variables) change, manually replace them: 
+```sh
+terraform apply -replace='aws_ecs_task_definition.service["frontend"]' -var 'image_tags={frontend="<sha>"}'
+```
